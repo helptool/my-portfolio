@@ -45,7 +45,17 @@ export function useTiltMotion(): { mx: MotionValue<number>; my: MotionValue<numb
   useEffect(() => {
     if (typeof window === "undefined") return
 
+    // Reduced-motion guard :: when the user has explicitly opted out of
+    // animation, we leave both motion values pinned at 0 so every
+    // downstream `useTransform` produces its neutral output. The check
+    // runs at effect time so it picks up the current OS preference.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)").matches
+
+    // Marks the effect as torn down so async permission flows cannot
+    // attach listeners after unmount. See iOS branch below.
+    let disposed = false
 
     let detachMouse: (() => void) | undefined
     let detachOrient: (() => void) | undefined
@@ -86,11 +96,14 @@ export function useTiltMotion(): { mx: MotionValue<number>; my: MotionValue<numb
         .DeviceOrientationEvent
       if (ctor && typeof ctor.requestPermission === "function") {
         // iOS Safari requires a user gesture to grant the permission.
+        // The `disposed` flag short-circuits the async resolution so we
+        // never attach a listener after the effect has been torn down
+        // (e.g. component unmounted while the permission dialog was up).
         const unlock = () => {
           ctor
             .requestPermission!()
             .then((state) => {
-              if (state === "granted") attach()
+              if (!disposed && state === "granted") attach()
             })
             .catch(() => {
               /* user denied; remain flat */
@@ -105,6 +118,7 @@ export function useTiltMotion(): { mx: MotionValue<number>; my: MotionValue<numb
     }
 
     return () => {
+      disposed = true
       if (detachMouse) detachMouse()
       if (detachOrient) detachOrient()
       if (detachUnlock) detachUnlock()
