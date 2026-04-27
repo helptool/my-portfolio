@@ -62,31 +62,52 @@ export function ManifestoScrolly() {
 
   /* IntersectionObserver on four equal-height slots inside the section.
      The rootMargin tightens the observation zone to a horizontal band near
-     the viewport centre — the slot currently crossing the centre wins. */
+     the viewport centre — the slot currently crossing the centre wins.
+
+     Threshold / ratio notes ::
+       Each slot is 100vh tall and the rootMargin shrinks the effective
+       observation zone to ~20 % of the viewport height, so the maximum
+       achievable intersectionRatio per slot is ~0.2. Thresholds are
+       therefore chosen within 0–0.2 so every traversal reports multiple
+       entries rather than only the enter/exit crossing.
+
+       The callback also maintains a persistent per-slot ratio map. An
+       IntersectionObserver only reports entries for slots that crossed
+       a threshold in that cycle — slots that remain stable (e.g. the
+       slot currently filling the band) are absent from the batch. If we
+       treated "absent" as ratio 0, the just-entering slot would win every
+       comparison even while the previous slot still dominates the band,
+       producing premature act switches. Persisting the last-known ratio
+       keeps the comparison honest. */
   useEffect(() => {
     if (!isFinePointer || reduced) return
     const slots = slotsRef.current.filter(Boolean) as HTMLDivElement[]
     if (slots.length === 0) return
+
+    const lastRatios = new Array(slots.length).fill(0)
+
     const observer = new IntersectionObserver(
       (entries) => {
-        // Prefer the most intersecting slot each cycle to avoid jitter near
-        // the boundaries between two slots.
+        entries.forEach((entry) => {
+          const idx = slots.indexOf(entry.target as HTMLDivElement)
+          if (idx >= 0) lastRatios[idx] = entry.intersectionRatio
+        })
+        // Pick the slot with the highest sustained intersection ratio.
         let bestIdx = -1
         let bestRatio = 0
-        slots.forEach((el, idx) => {
-          const entry = entries.find((e) => e.target === el)
-          const ratio = entry?.intersectionRatio ?? 0
-          if (ratio > bestRatio) {
-            bestRatio = ratio
-            bestIdx = idx
+        for (let i = 0; i < lastRatios.length; i++) {
+          if (lastRatios[i] > bestRatio) {
+            bestRatio = lastRatios[i]
+            bestIdx = i
           }
-        })
+        }
         if (bestIdx >= 0) setActiveAct(bestIdx)
       },
       {
-        // Narrow horizontal band, ~20% of viewport height centred on the middle.
+        // Horizontal band of ~20 % viewport height, centred vertically.
         rootMargin: "-40% 0px -40% 0px",
-        threshold: [0, 0.25, 0.5, 0.75, 1],
+        // Thresholds scaled to the band's actual max ratio (~0.2).
+        threshold: [0, 0.02, 0.05, 0.1, 0.15, 0.2],
       },
     )
     slots.forEach((el) => observer.observe(el))
