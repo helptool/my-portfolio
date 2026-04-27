@@ -1,0 +1,368 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* VAISH palette :: editorial onyx + bone + copper */
+  --background: oklch(0.115 0.008 40);
+  --foreground: oklch(0.94 0.015 80);
+  --card: oklch(0.14 0.01 45);
+  --card-foreground: oklch(0.94 0.015 80);
+  --popover: oklch(0.14 0.01 45);
+  --popover-foreground: oklch(0.94 0.015 80);
+  --primary: oklch(0.74 0.15 52);
+  --primary-foreground: oklch(0.11 0.008 40);
+  --secondary: oklch(0.18 0.012 45);
+  --secondary-foreground: oklch(0.94 0.015 80);
+  --muted: oklch(0.17 0.01 40);
+  --muted-foreground: oklch(0.62 0.02 60);
+  --accent: oklch(0.74 0.15 52);
+  --accent-foreground: oklch(0.11 0.008 40);
+  --destructive: oklch(0.62 0.2 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.94 0.015 80 / 0.09);
+  --input: oklch(0.22 0.012 45);
+  --ring: oklch(0.74 0.15 52 / 0.55);
+  --radius: 0.25rem;
+
+  /* Motion tokens */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+}
+
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui;
+  --font-mono: var(--font-mono-hud), ui-monospace;
+  --font-display: var(--font-display), 'Instrument Serif', serif;
+  --font-wordmark: var(--font-wordmark), 'Bodoni Moda', 'Didot', 'Cormorant Garamond', serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html, body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11", "ss03";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  html { scroll-behavior: auto; }
+  /* ::selection :: copper-bronze gradient via background-image (allowed
+     in CSS Pseudo-Elements L4). Three-stop gradient sweeps from hot
+     copper through dim bronze back to bright copper. text-shadow
+     adds a faint copper glow on the selected glyph for warmth. */
+  ::selection {
+    background-color: oklch(0.74 0.15 52 / 0.55);
+    background-image: linear-gradient(
+      105deg,
+      oklch(0.82 0.18 60 / 0.6) 0%,
+      oklch(0.66 0.12 38 / 0.55) 50%,
+      oklch(0.74 0.15 52 / 0.6) 100%
+    );
+    color: oklch(0.98 0.01 80);
+    text-shadow: 0 0 14px oklch(0.74 0.15 52 / 0.55);
+  }
+  ::-moz-selection {
+    background-color: oklch(0.74 0.15 52 / 0.55);
+    color: oklch(0.98 0.01 80);
+  }
+
+  /* Hide native cursor on pointer-fine devices so custom cursor takes over */
+  @media (hover: hover) and (pointer: fine) {
+    html, body, a, button, input, textarea, select, label, [role="button"], canvas {
+      cursor: none !important;
+    }
+  }
+
+  /* Ember-glow focus ring :: only visible on keyboard nav. Replaces the
+     browser default 2px outline with a layered shadow that matches the
+     copper accent. mix-blend-mode keeps it readable on any background. */
+  :focus-visible {
+    outline: none;
+  }
+  a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible,
+  select:focus-visible, [role="button"]:focus-visible, [tabindex]:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px oklch(0.115 0.008 40),
+      0 0 0 4px oklch(0.74 0.15 52 / 0.7),
+      0 0 18px oklch(0.74 0.15 52 / 0.45);
+    border-radius: var(--radius-md);
+    transition: box-shadow 160ms var(--ease-out-expo);
+  }
+}
+
+@layer utilities {
+  /* GPU promotion for elements that animate on every scroll/raf frame.
+     Apply selectively :: overusing will-change hurts memory + battery. */
+  .gpu-layer {
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+  }
+  .gpu-layer-opacity {
+    will-change: transform, opacity;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+  }
+
+  /* CSS containment hint :: tells the browser these sections cannot
+     affect the layout/paint of anything outside their bounding box, so
+     it can skip work when they are offscreen or unchanged. Safe to apply
+     to any block-level section that paints its own background. */
+  .contain-section {
+    contain: layout paint;
+  }
+
+  /* Image blur-up :: pairs with next/image placeholder=blur. Adds a
+     subtle saturate ramp + opacity fade-in so the swap from low-res to
+     high-res reads as a cinematic focus pull. */
+  .img-blur-up img {
+    transition:
+      filter 480ms var(--ease-out-expo),
+      opacity 360ms var(--ease-out-expo);
+  }
+  .img-blur-up img[data-loaded="false"] {
+    filter: blur(14px) saturate(0.85);
+    opacity: 0.85;
+  }
+  .img-blur-up img[data-loaded="true"] {
+    filter: blur(0) saturate(1);
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  .font-display { font-family: var(--font-display); letter-spacing: -0.015em; }
+  /* Bodoni Moda wordmark system :: razor-sharp editorial serif */
+  .font-wordmark {
+    font-family: var(--font-wordmark);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    font-feature-settings: "ss01", "dlig", "liga";
+    font-variation-settings: "opsz" 96;
+    font-optical-sizing: auto;
+  }
+  .font-wordmark-tight {
+    font-family: var(--font-wordmark);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-feature-settings: "ss01", "dlig", "liga";
+    font-variation-settings: "opsz" 96;
+    font-optical-sizing: auto;
+  }
+  .font-wordmark-display {
+    font-family: var(--font-wordmark);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    font-feature-settings: "ss01", "dlig", "liga";
+    font-variation-settings: "opsz" 96;
+    font-optical-sizing: auto;
+    font-style: italic;
+  }
+  .font-hud {
+    font-family: var(--font-mono);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .font-hud-sm { font-family: var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase; font-size: 9px; font-weight: 500; }
+
+  .text-balance { text-wrap: balance; }
+  .text-pretty { text-wrap: pretty; }
+
+  /* Editorial frame */
+  .frame-hairline { position: relative; }
+  .frame-hairline::before {
+    content: "";
+    position: absolute; inset: 0;
+    border: 1px solid oklch(0.94 0.015 80 / 0.08);
+    pointer-events: none;
+  }
+
+  .frame-corners::before, .frame-corners::after,
+  .frame-corners > .corner-tl, .frame-corners > .corner-br {
+    content: "";
+    position: absolute;
+    width: 14px; height: 14px;
+    border-color: oklch(0.74 0.15 52 / 0.7);
+    border-style: solid;
+  }
+  .frame-corners::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  .frame-corners::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+  .glow-ember { box-shadow:
+    0 0 0 1px oklch(0.74 0.15 52 / 0.3),
+    0 24px 90px -24px oklch(0.74 0.15 52 / 0.4),
+    inset 0 0 60px oklch(0.74 0.15 52 / 0.06); }
+
+  .bg-noise {
+    background-image:
+      radial-gradient(ellipse 50% 40% at 50% 0%, oklch(0.74 0.15 52 / 0.10), transparent 60%),
+      radial-gradient(ellipse 50% 30% at 100% 100%, oklch(0.74 0.15 52 / 0.06), transparent 60%),
+      linear-gradient(180deg, oklch(0.115 0.008 40), oklch(0.09 0.006 40));
+  }
+
+  .mask-fade-b { -webkit-mask-image: linear-gradient(180deg, black 55%, transparent 100%); mask-image: linear-gradient(180deg, black 55%, transparent 100%); }
+  .mask-fade-t { -webkit-mask-image: linear-gradient(0deg, black 55%, transparent 100%); mask-image: linear-gradient(0deg, black 55%, transparent 100%); }
+  .mask-fade-x { -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 12%, black 88%, transparent 100%); mask-image: linear-gradient(90deg, transparent 0%, black 12%, black 88%, transparent 100%); }
+
+  .grain::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 80;
+    opacity: 0.06;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  /* Thin grid backdrop */
+  .grid-lines {
+    background-image:
+      linear-gradient(oklch(0.94 0.015 80 / 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.94 0.015 80 / 0.035) 1px, transparent 1px);
+    background-size: 84px 84px;
+  }
+  .grid-lines-fine {
+    background-image:
+      linear-gradient(oklch(0.94 0.015 80 / 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.94 0.015 80 / 0.025) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* Headline treatment */
+  .display-xl { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.04em; line-height: 0.78; word-spacing: 0.04em; }
+  .display-lg { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.025em; line-height: 0.98; word-spacing: 0.08em; }
+  .italic-serif { font-family: var(--font-display); font-style: italic; letter-spacing: 0; word-spacing: 0.06em; }
+
+  /* Link with image-reveal preview */
+  .link-reveal { position: relative; display: inline-flex; align-items: baseline; gap: 0.25rem; }
+  .link-reveal::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -2px;
+    height: 1px; background: currentColor; transform-origin: right center;
+    transform: scaleX(0); transition: transform .6s var(--ease-out-expo);
+  }
+  .link-reveal:hover::after { transform-origin: left center; transform: scaleX(1); }
+
+  /* Marquee */
+  @keyframes marquee-x { 0% { transform: translate3d(0,0,0) } 100% { transform: translate3d(-50%,0,0) } }
+  @keyframes marquee-x-rev { 0% { transform: translate3d(-50%,0,0) } 100% { transform: translate3d(0,0,0) } }
+  @keyframes pulse-soft { 0%,100% { opacity: 0.5 } 50% { opacity: 1 } }
+  @keyframes rotate-slow { to { transform: rotate(360deg) } }
+  @keyframes drift-y { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-8px) } }
+  @keyframes sweep { 0% { transform: scaleX(0); transform-origin: left } 50% { transform: scaleX(1); transform-origin: left } 51% { transform-origin: right } 100% { transform: scaleX(0); transform-origin: right } }
+  @keyframes loader-tick { 0%,100% { opacity: 0.35 } 50% { opacity: 1 } }
+  @keyframes scanline { 0% { background-position: 0 0 } 100% { background-position: 0 4px } }
+  @keyframes flicker { 0%, 100% { opacity: 1 } 7% { opacity: 0.85 } 8% { opacity: 1 } 22% { opacity: 0.92 } 23% { opacity: 1 } }
+  /* Star twinkle :: pure GPU opacity loop. The hero used to drive
+     28 individual framer-motion infinite loops for this; one CSS
+     keyframe with per-element animation-delay does the same job
+     without any JS-side ticking. */
+  @keyframes star-twinkle { 0%,100% { opacity: 0.15 } 50% { opacity: 0.85 } }
+  /* Letter wave :: subtle per-letter Y drift used as a touch-device
+     fallback for LetterTilt so the wordmark still feels alive on
+     phones (where pointermove tilt obviously can't fire). */
+  @keyframes letter-wave { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-2px) } }
+  /* Particle field :: replicates the framer-motion values
+     `y: [0, -28, 0]` and `opacity: [0, 0.85, 0]` exactly. The
+     generic `drift-y` and `star-twinkle` loops nearby are tuned for
+     different elements (-8px drift, 0.15 min opacity) and don't
+     match the particle look, so this gets dedicated keyframes. */
+  @keyframes particle-drift { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-28px) } }
+  @keyframes particle-twinkle { 0%,100% { opacity: 0 } 50% { opacity: 0.85 } }
+
+  .animate-marquee-x { animation: marquee-x 42s linear infinite; }
+  .animate-marquee-x-rev { animation: marquee-x-rev 38s linear infinite; }
+  .animate-pulse-soft { animation: pulse-soft 3.2s ease-in-out infinite; }
+  .animate-rotate-slow { animation: rotate-slow 60s linear infinite; }
+  .animate-drift-y { animation: drift-y 7s ease-in-out infinite; }
+  .animate-sweep { animation: sweep 2.4s ease-in-out infinite; }
+  .animate-loader-tick { animation: loader-tick 1.1s ease-in-out infinite; }
+  .animate-flicker { animation: flicker 6s linear infinite; }
+  .animate-star-twinkle { animation: star-twinkle var(--star-dur, 6s) ease-in-out infinite; animation-delay: var(--star-delay, 0s); }
+  .animate-letter-wave { animation: letter-wave var(--letter-dur, 3.6s) ease-in-out infinite; animation-delay: var(--letter-delay, 0s); }
+  .animate-particle-drift { animation: particle-drift var(--particle-dur, 8s) ease-in-out infinite; animation-delay: var(--particle-delay, 0s); }
+  .animate-particle-twinkle { animation: particle-twinkle var(--particle-dur, 8s) ease-in-out infinite; animation-delay: var(--particle-delay, 0s); }
+
+  .scanlines {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      oklch(0.94 0.015 80 / 0.025) 2px,
+      oklch(0.94 0.015 80 / 0.025) 3px
+    );
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee-x, .animate-marquee-x-rev, .animate-pulse-soft, .animate-rotate-slow, .animate-drift-y, .animate-sweep, .animate-loader-tick, .animate-flicker, .animate-star-twinkle, .animate-letter-wave, .animate-particle-drift, .animate-particle-twinkle {
+      animation: none !important;
+    }
+  }
+}
+
+/* ===========================================================================
+ * Native View Transitions :: tuned crossfade for state-driven view changes
+ * (language switcher, arcade tab swap). Wrapped in @supports so older
+ * browsers ignore the rules entirely (they fall back to instant swaps).
+ *
+ * Why a custom curve and not the UA default
+ *   The default UA crossfade is ~250ms linear, which on a heavy section
+ *   like the hero or arcade reads as a pop. Swapping to a 360ms cubic
+ *   ease-out reads as deliberate without crossing into "slow".
+ * =========================================================================== */
+@supports (view-transition-name: root) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 360ms;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  ::view-transition-old(root) {
+    animation-name: vt-fade-out;
+  }
+  ::view-transition-new(root) {
+    animation-name: vt-fade-in;
+  }
+  @keyframes vt-fade-out {
+    from { opacity: 1; }
+    to   { opacity: 0; }
+  }
+  @keyframes vt-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    /* Reduced motion :: collapse the duration so the swap is effectively
+       instant. Browsers honour this without us having to detect the
+       preference in JS. */
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 1ms;
+    }
+  }
+}
