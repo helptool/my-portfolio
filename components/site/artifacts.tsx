@@ -5,6 +5,7 @@ import { useRef } from "react"
 import { artifacts } from "@/lib/vaish"
 import { useT } from "./i18n-context"
 import { SectionAtmosphere } from "./section-atmosphere"
+import { TitleMaskReveal } from "./title-mask-reveal"
 
 export function Artifacts() {
   const t = useT()
@@ -22,9 +23,11 @@ export function Artifacts() {
             <span className="font-hud text-muted-foreground">{t("artifacts.kicker")}</span>
           </div>
           <div className="col-span-12 md:col-span-9">
-            <h2 className="display-lg text-[clamp(44px,7.5vw,120px)]">
-              {t("artifacts.title")} <span className="italic-serif text-primary">{t("artifacts.titleAccent")}</span> {t("artifacts.titleAfter")}
-            </h2>
+            <TitleMaskReveal>
+              <h2 className="display-lg text-[clamp(44px,7.5vw,120px)]">
+                {t("artifacts.title")} <span className="italic-serif text-primary">{t("artifacts.titleAccent")}</span> {t("artifacts.titleAfter")}
+              </h2>
+            </TitleMaskReveal>
             <p className="mt-5 max-w-[520px] text-[15px] leading-relaxed text-muted-foreground">
               {t("artifacts.intro")}
             </p>

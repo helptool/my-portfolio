@@ -385,8 +385,37 @@ export function Footer() {
       </div>
 
       {/* === B :: VAISH wordmark on plain background, BELOW the footer body
-              Now driven by the looping 4-stage VFX cycle component. */}
+              Now driven by the looping 4-stage VFX cycle component.
+
+              The slab carries its own broad copper aura that extends well
+              beyond the wordmark's text box. Without this, the WordmarkCycle
+              internal aura clips to the letter bounding box and produces a
+              visible rectangular frame around the text. This slab-wide
+              radial gradient softens the vertical space above and below the
+              lockup so the lighting reads as ambient atmosphere, not as a
+              sign lit from inside a box. */}
       <div className="relative overflow-hidden bg-background pt-16 pb-10 md:pt-24 md:pb-14">
+        {/* Broad atmospheric aura — full-slab radial gradient that bleeds
+            into the padding above/below the wordmark. Kept subtle so the
+            lockup's own VFX stages still carry the visual weight. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(75% 100% at 50% 55%, oklch(0.22 0.06 52 / 0.45) 0%, oklch(0.12 0.03 52 / 0.28) 35%, transparent 72%)",
+          }}
+        />
+        {/* Secondary warmer bloom centred on the wordmark vertical axis. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(45% 75% at 50% 50%, oklch(0.26 0.08 52 / 0.35) 0%, transparent 70%)",
+            mixBlendMode: "plus-lighter" as const,
+          }}
+        />
         <div className="grain pointer-events-none absolute inset-0 opacity-[0.04]" />
 
         {/* Animated wordmark with looping VFX */}
@@ -395,6 +424,7 @@ export function Footer() {
           whileInView={{ y: 0, opacity: 1 }}
           viewport={{ once: true, amount: 0.4 }}
           transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
+          className="relative"
         >
           <WordmarkCycle />
         </motion.div>

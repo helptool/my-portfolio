@@ -9,6 +9,7 @@ import { classes, realms } from "@/lib/vaish"
 import { cn } from "@/lib/utils"
 import { useT } from "./i18n-context"
 import { SectionAtmosphere } from "./section-atmosphere"
+import { TitleMaskReveal } from "./title-mask-reveal"
 
 const realmByName = new Map(realms.map((r) => [r.name, r]))
 
@@ -78,12 +79,14 @@ export function Classes() {
             <span className="font-hud text-foreground/70">{t("classes.kicker")}</span>
           </div>
           <div className="col-span-12 md:col-span-9">
-            <h2 className="font-wordmark-tight text-[clamp(44px,7.5vw,120px)] font-semibold leading-[0.95]">
-              {t("classes.title")}{" "}
-              <span className="italic-serif font-display font-normal text-primary">
-                {t("classes.titleAccent")}
-              </span>
-            </h2>
+            <TitleMaskReveal>
+              <h2 className="font-wordmark-tight text-[clamp(44px,7.5vw,120px)] font-semibold leading-[0.95]">
+                {t("classes.title")}{" "}
+                <span className="italic-serif font-display font-normal text-primary">
+                  {t("classes.titleAccent")}
+                </span>
+              </h2>
+            </TitleMaskReveal>
             <p className="mt-5 max-w-[640px] text-[15px] leading-relaxed text-foreground/65">
               {t("classes.intro")}
             </p>
