@@ -15,6 +15,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { realms } from "@/lib/vaish"
 import { useT } from "./i18n-context"
 import { useRunes } from "./runes-context"
+import { useTiltMotion } from "@/lib/use-tilt-motion"
+import type { MotionValue } from "framer-motion"
 
 /* ---------------------------------------------------------------------------
  * Realms :: scroll-driven horizontal carousel with STRICT scroll snap.
@@ -43,6 +45,19 @@ export function Realms() {
   const t = useT()
   const ref = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] })
+
+  // Parallax tilt :: feeds slide imagery on both desktop (mousemove) and
+  // touch (deviceorientation). Lifted to the Realms parent so all slides
+  // share one set of motion values + one event listener.
+  const { mx: tiltMx, my: tiltMy } = useTiltMotion()
+  const slideParallaxX = useSpring(useTransform(tiltMx, [-1, 1], [-18, 18]), {
+    stiffness: 60,
+    damping: 20,
+  })
+  const slideParallaxY = useSpring(useTransform(tiltMy, [-1, 1], [-12, 12]), {
+    stiffness: 60,
+    damping: 20,
+  })
 
   const N = realms.length
 
@@ -188,7 +203,15 @@ export function Realms() {
           className="flex h-full will-change-transform"
         >
           {realms.map((r, i) => (
-            <RealmSlide key={r.index} realm={r} index={i} isActive={i === active} t={t} />
+            <RealmSlide
+              key={r.index}
+              realm={r}
+              index={i}
+              isActive={i === active}
+              t={t}
+              parallaxX={slideParallaxX}
+              parallaxY={slideParallaxY}
+            />
           ))}
         </motion.div>
       </div>
@@ -196,13 +219,28 @@ export function Realms() {
   )
 }
 
-function RealmSlide({ realm, index, isActive, t }: { realm: (typeof realms)[number]; index: number; isActive: boolean; t: (k: string) => string }) {
+function RealmSlide({
+  realm,
+  index,
+  isActive,
+  t,
+  parallaxX,
+  parallaxY,
+}: {
+  realm: (typeof realms)[number]
+  index: number
+  isActive: boolean
+  t: (k: string) => string
+  parallaxX: MotionValue<number>
+  parallaxY: MotionValue<number>
+}) {
   return (
     <div className="relative h-full shrink-0 grow-0 basis-[100vw]" style={{ width: "100vw" }}>
       <div className="absolute inset-0">
         <motion.div
           animate={{ scale: isActive ? 1.02 : 1.12 }}
           transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
+          style={{ x: parallaxX, y: parallaxY }}
           className="absolute inset-0"
         >
           {/* RevealImage :: the visible realm IS the present-tense reading;

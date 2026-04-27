@@ -9,12 +9,12 @@ import {
   AnimatePresence,
   useScroll,
   useTransform,
-  useMotionValue,
   useSpring,
   useReducedMotion,
 } from "framer-motion"
 import dynamic from "next/dynamic"
 import { brand } from "@/lib/vaish"
+import { useTiltMotion } from "@/lib/use-tilt-motion"
 import { Magnetic } from "./magnetic"
 import { LetterTilt } from "./letter-tilt"
 import { ScrollWeight } from "./scroll-weight"
@@ -248,9 +248,13 @@ export function Hero() {
   const hudY = useTransform(sp, [0, 0.6, 1], [0, 0, 80])
   const hudOpacity = useTransform(sp, [0, 0.85, 1], [1, 1, 0])
 
-  // Mouse parallax (desktop only effectively, but harmless on touch)
-  const mx = useMotionValue(0)
-  const my = useMotionValue(0)
+  // Pointer-or-tilt parallax. On desktop this is mousemove relative to the
+  // viewport centre; on phones / tablets it's `deviceorientation` (gamma →
+  // x, beta → y) so a tilt of the device produces the same drift on the
+  // hero plates that a mouse glide produces on desktop. Both feed a
+  // normalised −1..1 motion value that downstream `useSpring`/`useTransform`
+  // chains map into pixel offsets.
+  const { mx, my } = useTiltMotion()
   const tiltX = useSpring(useTransform(my, [-1, 1], [4, -4]), { stiffness: 80, damping: 14 })
   const tiltY = useSpring(useTransform(mx, [-1, 1], [-6, 6]), { stiffness: 80, damping: 14 })
   const driftAvatarX = useSpring(useTransform(mx, [-1, 1], [-12, 12]), { stiffness: 70, damping: 18 })
@@ -260,18 +264,6 @@ export function Hero() {
 
   // Pre-derive transforms so we never call hooks inside JSX
   const vistaClipPath = useTransform(vistaClipR, (v) => `inset(0% ${v} 0% 0%)`)
-
-  useEffect(() => {
-    if (reduce) return
-    const onMove = (e: MouseEvent) => {
-      const cx = window.innerWidth / 2
-      const cy = window.innerHeight / 2
-      mx.set((e.clientX - cx) / cx)
-      my.set((e.clientY - cy) / cy)
-    }
-    window.addEventListener("mousemove", onMove, { passive: true })
-    return () => window.removeEventListener("mousemove", onMove)
-  }, [mx, my, reduce])
 
   // World-loaded counter
   const [count, setCount] = useState(0)
