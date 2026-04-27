@@ -22,7 +22,7 @@
  * ------------------------------------------------------------------------- */
 
 import { useEffect } from "react"
-import { useMotionValue, type MotionValue } from "framer-motion"
+import { useMotionValue, useReducedMotion, type MotionValue } from "framer-motion"
 
 // Tilt amplitude (degrees) above which we clamp to ±1. ~25° produces a
 // natural full-range deflection without forcing the user into uncomfortable
@@ -41,15 +41,23 @@ interface DeviceOrientationEventiOSConstructor {
 export function useTiltMotion(): { mx: MotionValue<number>; my: MotionValue<number> } {
   const mx = useMotionValue(0)
   const my = useMotionValue(0)
+  // Reactive reduced-motion preference. Framer Motion's hook subscribes to
+  // the underlying media query, so the effect below re-runs whenever the
+  // user toggles the OS preference while the page is open — cleaning up
+  // listeners when motion is disabled and re-attaching them when enabled.
+  const reduced = useReducedMotion() ?? false
 
   useEffect(() => {
     if (typeof window === "undefined") return
-
-    // Reduced-motion guard :: when the user has explicitly opted out of
-    // animation, we leave both motion values pinned at 0 so every
-    // downstream `useTransform` produces its neutral output. The check
-    // runs at effect time so it picks up the current OS preference.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    // Pin motion values to neutral and skip listener attachment when the
+    // user prefers reduced motion. Because `reduced` is in the dep array,
+    // toggling the preference live tears down or re-attaches listeners
+    // automatically without needing a page reload.
+    if (reduced) {
+      mx.set(0)
+      my.set(0)
+      return
+    }
 
     const fine = window.matchMedia("(hover: hover) and (pointer: fine)").matches
 
@@ -123,7 +131,7 @@ export function useTiltMotion(): { mx: MotionValue<number>; my: MotionValue<numb
       if (detachOrient) detachOrient()
       if (detachUnlock) detachUnlock()
     }
-  }, [mx, my])
+  }, [mx, my, reduced])
 
   return { mx, my }
 }
