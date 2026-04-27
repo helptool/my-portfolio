@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { navItems } from "@/lib/vaish"
 import { cn } from "@/lib/utils"
 import { useT } from "./i18n-context"
+import { NavMagneticArcs } from "./nav-magnetic-arcs"
 
 /** Geometry of the active rail item, used to position a single shared plate. */
 type RailRect = { left: number; width: number; height: number; top: number }
@@ -261,6 +262,15 @@ export function Nav() {
             <div ref={railRef} className="relative flex items-stretch gap-1 px-1.5 py-1">
               {/* HUD frame around the entire rail */}
               <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[2px] border border-foreground/[0.06]" />
+              {/* Magnetic snap arcs :: thin curved bezier from the cursor to
+                  the nearest nav link when cursor is within range. Renders
+                  only on fine-pointer devices and respects reduced-motion. */}
+              <NavMagneticArcs
+                wrapperRef={railRef}
+                linkSelector="a[href^='#']"
+                range={140}
+                maxOpacity={0.85}
+              />
               <span aria-hidden className="pointer-events-none absolute -top-px left-3 h-px w-6 bg-primary/55" />
               <span aria-hidden className="pointer-events-none absolute -bottom-px right-3 h-px w-6 bg-primary/55" />
 
