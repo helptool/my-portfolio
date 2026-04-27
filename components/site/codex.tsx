@@ -6,6 +6,7 @@ import { chapters } from "@/lib/vaish"
 import { useT } from "./i18n-context"
 import { SectionAtmosphere } from "./section-atmosphere"
 import { useRunes } from "./runes-context"
+import { TitleMaskReveal } from "./title-mask-reveal"
 
 export function Codex() {
   const t = useT()
@@ -39,9 +40,11 @@ export function Codex() {
             <span className="font-hud text-muted-foreground">{t("codex.kicker")}</span>
           </div>
           <div className="col-span-12 md:col-span-9">
-            <h2 className="display-lg text-[clamp(44px,7.5vw,120px)]">
-              {t("codex.title")} <span className="italic-serif text-primary">{t("codex.titleAccent")}</span>
-            </h2>
+            <TitleMaskReveal>
+              <h2 className="display-lg text-[clamp(44px,7.5vw,120px)]">
+                {t("codex.title")} <span className="italic-serif text-primary">{t("codex.titleAccent")}</span>
+              </h2>
+            </TitleMaskReveal>
             <p className="mt-5 max-w-[520px] text-[15px] leading-relaxed text-muted-foreground">
               {t("codex.intro")}
             </p>

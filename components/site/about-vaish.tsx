@@ -7,6 +7,7 @@ import { motion, useScroll, useTransform, useMotionValue, useSpring, type Motion
 import { useT } from "./i18n-context"
 import { stats } from "@/lib/vaish"
 import { SectionAtmosphere } from "./section-atmosphere"
+import { TitleMaskReveal } from "./title-mask-reveal"
 
 /**
  * A dedicated "What is VAISH" section that explains the portfolio project
@@ -80,10 +81,12 @@ export function AboutVaish() {
 
         {/* Heading + body */}
         <div className="col-span-12 md:col-span-9">
-          <h2 className="display-lg text-[clamp(40px,7vw,120px)] leading-[0.96] text-balance">
-            {t("vaish.title")}{" "}
-            <span className="italic-serif text-primary">{t("vaish.titleAccent")}</span>
-          </h2>
+          <TitleMaskReveal>
+            <h2 className="display-lg text-[clamp(40px,7vw,120px)] leading-[0.96] text-balance">
+              {t("vaish.title")}{" "}
+              <span className="italic-serif text-primary">{t("vaish.titleAccent")}</span>
+            </h2>
+          </TitleMaskReveal>
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
