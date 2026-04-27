@@ -207,10 +207,12 @@ export function Realms() {
               key={r.index}
               realm={r}
               index={i}
+              total={N}
               isActive={i === active}
               t={t}
               parallaxX={slideParallaxX}
               parallaxY={slideParallaxY}
+              scrollYProgress={scrollYProgress}
             />
           ))}
         </motion.div>
@@ -222,25 +224,72 @@ export function Realms() {
 function RealmSlide({
   realm,
   index,
+  total,
   isActive,
   t,
   parallaxX,
   parallaxY,
+  scrollYProgress,
 }: {
   realm: (typeof realms)[number]
   index: number
+  total: number
   isActive: boolean
   t: (k: string) => string
   parallaxX: MotionValue<number>
   parallaxY: MotionValue<number>
+  scrollYProgress: MotionValue<number>
 }) {
+  /* Cinematography :: derive a slide-local progress in -1..1 from the
+     parent scrollYProgress (0..1). 0 = perfectly centred on this slide,
+     +1 = next slide is centring, -1 = previous slide is centring.
+     We use that to drive a slow ken-burns zoom on the active card and
+     a subtle foreground parallax that drifts as the user scrolls
+     through the slide's segment. The result reads like a film camera
+     pushing in on a frame instead of a flat carousel. */
+  const slideProgress = useTransform(scrollYProgress, (v) => {
+    const seg = v * total
+    return seg - index
+  })
+  // Active-window envelope :: 1.0 when slide is centred, falls off as
+  // we leave the rest plateau. Keeps the ken-burns from running while
+  // a slide is offscreen.
+  const activeEnvelope = useTransform(slideProgress, (p) => {
+    if (p < -0.5 || p > 1) return 0
+    if (p >= 0 && p <= REST_RATIO) return 1
+    if (p < 0) return 1 + p * 2 // -0.5..0 → 0..1
+    return Math.max(0, 1 - (p - REST_RATIO) * 4) // REST_RATIO..1 → 1..0
+  })
+  // Slow zoom while active :: scale 1.04 → 1.10 across the rest window
+  // gives a calm "camera dolly in" without ever cutting off content.
+  const cinemaScaleRaw = useTransform(slideProgress, (p) => {
+    const localRest = Math.max(0, Math.min(1, p / REST_RATIO))
+    return 1.04 + localRest * 0.06
+  })
+  const cinemaScale = useSpring(cinemaScaleRaw, {
+    stiffness: 80,
+    damping: 24,
+  })
+  // Foreground parallax :: a thin warm haze layer drifts upward across
+  // the slide's lifetime (–28px..+28px). Multiplied by activeEnvelope
+  // so it sits flush with the gradient when the slide isn't centred.
+  const foregroundY = useTransform(slideProgress, [-0.5, 0, REST_RATIO, 1], [28, 0, -22, -40])
+  const foregroundOpacity = useTransform(activeEnvelope, [0, 1], [0, 0.55])
   return (
     <div className="relative h-full shrink-0 grow-0 basis-[100vw]" style={{ width: "100vw" }}>
       <div className="absolute inset-0">
+        {/* Outer wrapper handles tilt parallax (PR A) + cinematic
+            ken-burns zoom while the slide is centred. We multiply the
+            zoom and the inactive-state scale on two nested transforms
+            so framer-motion's `animate` keyframes don't fight the
+            scroll-driven spring on the same property. */}
         <motion.div
-          animate={{ scale: isActive ? 1.02 : 1.12 }}
+          style={{ x: parallaxX, y: parallaxY, scale: cinemaScale }}
+          className="absolute inset-0"
+        >
+        <motion.div
+          animate={{ scale: isActive ? 1.0 : 1.12 }}
           transition={{ duration: 1.4, ease: [0.22, 1, 0.36, 1] }}
-          style={{ x: parallaxX, y: parallaxY }}
           className="absolute inset-0"
         >
           {/* RevealImage :: the visible realm IS the present-tense reading;
@@ -262,6 +311,7 @@ function RealmSlide({
             priority={index === 0}
           />
         </motion.div>
+        </motion.div>
       </div>
 
       {/* Decorative tone gradients sit on top of the RevealImage. They
@@ -273,6 +323,18 @@ function RealmSlide({
           porthole never opens. */}
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,oklch(0.09_0.006_40/0.5)_0%,transparent_25%,transparent_55%,oklch(0.09_0.006_40/0.94)_100%)]" />
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,oklch(0.09_0.006_40/0.88)_0%,transparent_50%,transparent_100%)] md:bg-[linear-gradient(90deg,oklch(0.09_0.006_40/0.82)_0%,transparent_40%,transparent_100%)]" />
+
+      {/* Foreground cinematic haze :: thin warm gradient that drifts
+          upward across the slide's lifetime. Sits ABOVE the base tone
+          gradients but BELOW the text content (z-index unchanged). The
+          drift + opacity envelope reads as atmosphere settling into
+          the frame as the camera dollies in — pure scroll-driven, no
+          rAF cost. */}
+      <motion.div
+        aria-hidden
+        style={{ y: foregroundY, opacity: foregroundOpacity }}
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[55%] bg-[radial-gradient(120%_60%_at_50%_120%,oklch(0.62_0.18_45/0.42)_0%,oklch(0.45_0.16_45/0.18)_30%,transparent_70%)]"
+      />
 
       {/* ghost index */}
       <div aria-hidden className="pointer-events-none absolute bottom-[-4vw] right-[-1vw] z-[5] text-right">

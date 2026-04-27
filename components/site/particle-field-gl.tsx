@@ -37,12 +37,17 @@ type Props = {
 const VERT = /* glsl */ `
 attribute vec2 a_seed;     // [0..1, 0..1] stable per-particle seed
 attribute float a_size;    // base point size
+attribute float a_depth;   // 0..1 :: 0 = far / small / dim, 1 = near / big / bright
 
 uniform float u_time;
 uniform vec2  u_resolution;
 uniform float u_dpr;
+uniform float u_scrollVelocity; // smoothed scroll delta in normalised units
+uniform float u_pointerX;       // -1..1 horizontal pointer / tilt offset
+uniform float u_pointerY;       // -1..1 vertical pointer / tilt offset
 
 varying float v_alpha;
+varying float v_depth;
 
 void main() {
   // Distribute particles deterministically across the viewport. Vertical
@@ -50,6 +55,16 @@ void main() {
   // shift the phase so adjacent particles aren't synchronised.
   float vy = mod(a_seed.y + u_time * (0.012 + a_seed.x * 0.018), 1.0);
   float vx = a_seed.x + sin(u_time * 0.18 + a_seed.y * 6.2831) * 0.012;
+
+  // Depth parallax :: per-particle z encoded in a_depth (0 = far, 1 = near).
+  // We shift x and y by (depth - 0.5) so half the field drifts opposite
+  // the other half — near particles move further than far particles
+  // when the page scrolls, the effect reads as honest 3D depth instead
+  // of a flat sheet.
+  float zOffset = a_depth - 0.5;
+  vy += zOffset * u_scrollVelocity * 0.45;
+  vx += zOffset * (u_pointerX * 0.06);
+  vy += zOffset * (u_pointerY * 0.04);
 
   // Convert normalised coords to clip space (origin top-left in our case).
   vec2 ndc = vec2(vx * 2.0 - 1.0, 1.0 - vy * 2.0);
@@ -59,16 +74,22 @@ void main() {
   float life = vy;
   float fadeIn  = smoothstep(0.0, 0.15, life);
   float fadeOut = 1.0 - smoothstep(0.85, 1.0, life);
-  v_alpha = fadeIn * fadeOut * (0.4 + a_seed.x * 0.6);
+  // Far particles (low depth) are dimmer and smaller; near particles
+  // (high depth) are bigger and brighter. The 0.35..1.0 alpha range and
+  // 0.5..1.4 size multiplier give a clean ~3 stops of perceived depth.
+  float depthAlpha = mix(0.35, 1.0, a_depth);
+  v_alpha = fadeIn * fadeOut * (0.4 + a_seed.x * 0.6) * depthAlpha;
+  v_depth = a_depth;
 
   gl_Position = vec4(ndc, 0.0, 1.0);
-  gl_PointSize = a_size * u_dpr * (0.6 + a_seed.x * 0.8);
+  gl_PointSize = a_size * u_dpr * (0.6 + a_seed.x * 0.8) * mix(0.5, 1.4, a_depth);
 }
 `
 
 const FRAG = /* glsl */ `
 precision mediump float;
 varying float v_alpha;
+varying float v_depth;
 
 uniform vec3 u_color;
 
@@ -79,7 +100,11 @@ void main() {
   float r = length(d);
   if (r > 0.5) discard;
   float falloff = smoothstep(0.5, 0.0, r);
-  gl_FragColor = vec4(u_color, falloff * v_alpha);
+  // Push the colour warmer for near particles (more saturated copper),
+  // cooler / dimmer for far particles. Reads as atmospheric perspective
+  // — far things desaturate slightly, the way they do in real haze.
+  vec3 color = mix(u_color * 0.65, u_color, v_depth);
+  gl_FragColor = vec4(color, falloff * v_alpha);
 }
 `
 
@@ -144,14 +169,23 @@ export function ParticleFieldGL({
     gl.useProgram(program)
 
     /* ----- per-particle attributes ----- */
-    // a_seed: 2 floats per point, [0..1, 0..1]
-    // a_size: 1 float per point, base px size
+    // a_seed:  2 floats per point, [0..1, 0..1]
+    // a_size:  1 float per point, base px size
+    // a_depth: 1 float per point, 0..1 — gives us the parallax z dimension
+    //          and feeds the size/alpha/color falloffs in the shaders.
+    //          Skewed cubic so most particles sit in the mid plane and a
+    //          few sit clearly near or far, which reads more 3D than a
+    //          flat uniform distribution.
     const seeds = new Float32Array(count * 2)
     const sizes = new Float32Array(count)
+    const depths = new Float32Array(count)
     for (let i = 0; i < count; i++) {
       seeds[i * 2] = Math.random()
       seeds[i * 2 + 1] = Math.random()
       sizes[i] = 1.4 + Math.random() * 2.6
+      const r = Math.random()
+      // ease-out-cubic shaped depth distribution
+      depths[i] = 1 - Math.pow(1 - r, 3)
     }
 
     const seedBuf = gl.createBuffer()
@@ -168,11 +202,21 @@ export function ParticleFieldGL({
     gl.enableVertexAttribArray(sizeLoc)
     gl.vertexAttribPointer(sizeLoc, 1, gl.FLOAT, false, 0, 0)
 
+    const depthBuf = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, depthBuf)
+    gl.bufferData(gl.ARRAY_BUFFER, depths, gl.STATIC_DRAW)
+    const depthLoc = gl.getAttribLocation(program, "a_depth")
+    gl.enableVertexAttribArray(depthLoc)
+    gl.vertexAttribPointer(depthLoc, 1, gl.FLOAT, false, 0, 0)
+
     /* ----- uniforms ----- */
     const uTime = gl.getUniformLocation(program, "u_time")
     const uRes = gl.getUniformLocation(program, "u_resolution")
     const uDpr = gl.getUniformLocation(program, "u_dpr")
     const uColor = gl.getUniformLocation(program, "u_color")
+    const uScrollVel = gl.getUniformLocation(program, "u_scrollVelocity")
+    const uPointerX = gl.getUniformLocation(program, "u_pointerX")
+    const uPointerY = gl.getUniformLocation(program, "u_pointerY")
 
     // Copper ember tone — same hue family as the realm palette.
     gl.uniform3f(uColor, 0.86, 0.55, 0.27)
@@ -211,9 +255,45 @@ export function ParticleFieldGL({
     let blownFrames = 0
     let inView = true
 
+    /* Scroll velocity tracker :: smoothed delta of window.scrollY between
+       frames, normalised so a typical wheel-scroll burst hits ~1.0. The
+       vertex shader uses this to push near particles further than far
+       particles, producing the parallax depth read.
+       Pointer offset comes from the same mousemove the hero already
+       wires up; we read it lazily off a CSS variable so we don't have
+       to thread props through dynamic imports. The variable is set by
+       hero.tsx's existing useTiltMotion mx/my springs (added in PR A). */
+    let lastScrollY =
+      typeof window !== "undefined" ? window.scrollY : 0
+    let smoothedScrollVel = 0
+    const onScroll = () => {
+      const y = window.scrollY
+      const dy = y - lastScrollY
+      lastScrollY = y
+      // Normalise: ~700px/s of scroll at 60fps = ~11px/frame ≈ 1.0
+      const target = Math.max(-1.4, Math.min(1.4, dy / 11))
+      smoothedScrollVel = smoothedScrollVel * 0.55 + target * 0.45
+    }
+    let pointerX = 0
+    let pointerY = 0
+    const onPointer = (e: PointerEvent) => {
+      const cx = window.innerWidth / 2
+      const cy = window.innerHeight / 2
+      pointerX = (e.clientX - cx) / cx
+      pointerY = (e.clientY - cy) / cy
+    }
+    window.addEventListener("scroll", onScroll, { passive: true })
+    window.addEventListener("pointermove", onPointer, { passive: true })
+
     const draw = (tNow: number) => {
       const t = tNow / 1000
+      // Bleed scroll velocity each frame so a flick produces a one-shot
+      // parallax pulse rather than a sustained one.
+      smoothedScrollVel *= 0.9
       gl.uniform1f(uTime, t)
+      gl.uniform1f(uScrollVel, smoothedScrollVel)
+      gl.uniform1f(uPointerX, pointerX)
+      gl.uniform1f(uPointerY, pointerY)
       gl.clearColor(0, 0, 0, 0)
       gl.clear(gl.COLOR_BUFFER_BIT)
       gl.drawArrays(gl.POINTS, 0, count)
@@ -224,9 +304,12 @@ export function ParticleFieldGL({
       // GPU work — respects the user's preference and saves battery.
       draw(0)
       return () => {
+        window.removeEventListener("scroll", onScroll)
+        window.removeEventListener("pointermove", onPointer)
         ro.disconnect()
         gl.deleteBuffer(seedBuf)
         gl.deleteBuffer(sizeBuf)
+        gl.deleteBuffer(depthBuf)
         gl.deleteProgram(program)
         gl.deleteShader(vs)
         gl.deleteShader(fs)
@@ -298,10 +381,13 @@ export function ParticleFieldGL({
     return () => {
       if (raf) cancelAnimationFrame(raf)
       document.removeEventListener("visibilitychange", onVis)
+      window.removeEventListener("scroll", onScroll)
+      window.removeEventListener("pointermove", onPointer)
       io.disconnect()
       ro.disconnect()
       gl.deleteBuffer(seedBuf)
       gl.deleteBuffer(sizeBuf)
+      gl.deleteBuffer(depthBuf)
       gl.deleteProgram(program)
       gl.deleteShader(vs)
       gl.deleteShader(fs)

@@ -63,6 +63,8 @@ uniform float u_time;
 uniform float u_warp;
 uniform float u_aberration;
 uniform float u_aspect; // image aspect / container aspect
+uniform float u_ripple;        // 0..1 :: amplitude envelope for the radial wave
+uniform float u_rippleVelocity; // 0..1 :: short pulse spike on each pointermove
 
 // 2D simplex-ish noise (cheap, good enough for displacement)
 vec2 hash2(vec2 p) {
@@ -115,6 +117,21 @@ void main() {
     field * 0.6 + falloff * (m.x - v_uv.x) * 0.8,
     field * 0.6 + falloff * (m.y - v_uv.y) * 0.8
   );
+
+  // Radial ripple :: a thin wave emanates outward from the cursor each
+  // time the user moves. Modeled as a sine-wave on dist with a soft
+  // distance attenuation, scaled by a JS-side velocity envelope so
+  // motion produces a drop-in-water reaction rather than a continuous
+  // wobble. Direction is (v_uv - m), which means the displacement
+  // points away from the cursor so content reads as being pushed
+  // outward by the wave front. The cursor SDF (waveDecay) reshapes the
+  // amplitude so points further than ~0.5 UV units away ignore it.
+  vec2 outward = normalize(v_uv - m + vec2(0.0001));
+  float wave = sin(dist * 28.0 - u_time * 4.2);
+  float waveDecay = exp(-dist * 4.0);
+  float rippleAmp = u_ripple * (0.35 + 0.65 * u_rippleVelocity);
+  disp += outward * wave * waveDecay * rippleAmp;
+
   vec2 warpedUV = uv + disp * u_warp;
 
   // Sample R/G/B with offsets for chromatic aberration. Strength scales
@@ -224,6 +241,8 @@ export function ShaderImage({
     const uWarp = gl.getUniformLocation(program, "u_warp")
     const uAberration = gl.getUniformLocation(program, "u_aberration")
     const uAspect = gl.getUniformLocation(program, "u_aspect")
+    const uRipple = gl.getUniformLocation(program, "u_ripple")
+    const uRippleVelocity = gl.getUniformLocation(program, "u_rippleVelocity")
 
     /* Texture bound from the <img> element directly. */
     const tex = gl.createTexture()!
@@ -265,6 +284,16 @@ export function ShaderImage({
     let targetWarp = idleWarp
     let aberration = idleAberration
     let targetAberration = idleAberration
+    /* Ripple envelope :: `ripple` is the base amplitude that ramps to 1
+       while the cursor is over the canvas and to 0 when it leaves;
+       `rippleVelocity` is a short pulse (peaks at 1 on each pointermove,
+       decays toward 0) that adds an extra "drop in water" reaction on
+       motion. The two are multiplied in the fragment shader so a still
+       hover gives a calm wave and a moving cursor gives sharp ripples. */
+    let ripple = 0
+    let targetRipple = 0
+    let rippleVelocity = 0
+    let lastMoveTime = 0
     let dpr = Math.min(2, window.devicePixelRatio || 1)
     let rafId = 0
     let aspect = 1
@@ -288,12 +317,20 @@ export function ShaderImage({
       targetMouseY = (e.clientY - r.top) / r.height
       targetWarp = hoverWarpTarget
       targetAberration = hoverAberrationTarget
+      // Hover sets the steady ripple envelope; each move kicks the
+      // velocity pulse high. The render loop bleeds it down toward 0
+      // ~30% per frame so a single move produces a brief ripple, while
+      // continuous motion keeps the wave alive.
+      targetRipple = 1
+      rippleVelocity = 1
+      lastMoveTime = performance.now()
     }
     const onLeave = () => {
       targetMouseX = 0.5
       targetMouseY = 0.5
       targetWarp = idleWarp
       targetAberration = idleAberration
+      targetRipple = 0
     }
 
     container.addEventListener("pointermove", onMove)
@@ -317,6 +354,15 @@ export function ShaderImage({
       mouseY += (targetMouseY - mouseY) * 0.08
       warp += (targetWarp - warp) * 0.06
       aberration += (targetAberration - aberration) * 0.06
+      // Ripple envelope :: lerp toward target, then bleed velocity. The
+      // velocity pulse decays exponentially after the most recent
+      // pointermove so a still cursor produces a calm wave instead of a
+      // thrashing one.
+      ripple += (targetRipple - ripple) * 0.08
+      const sinceMove = performance.now() - lastMoveTime
+      // 240 ms half-life feels natural :: a single twitch lasts ~half a
+      // second of visible reaction.
+      rippleVelocity = Math.max(0, rippleVelocity - 0.05) * Math.exp(-sinceMove / 1000)
 
       gl.viewport(0, 0, canvas.width, canvas.height)
       gl.clearColor(0, 0, 0, 0)
@@ -334,6 +380,8 @@ export function ShaderImage({
       gl.uniform1f(uWarp, warp)
       gl.uniform1f(uAberration, aberration)
       gl.uniform1f(uAspect, aspect)
+      gl.uniform1f(uRipple, ripple)
+      gl.uniform1f(uRippleVelocity, rippleVelocity)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
       rafId = requestAnimationFrame(render)
     }
